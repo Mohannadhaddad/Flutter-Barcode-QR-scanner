@@ -87,7 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text('Server API', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 4),
           Text(
-            'Scans are saved on-device first. When enabled, each scan is POSTed as JSON to your URL.',
+            'Scans are saved on-device first. When enabled, each scan is POSTed as JSON to your URL. Use the full path to your PHP file (for example https://yourdomain.com/scan.php). Set API key to match your server (e.g. 123).',
             style: TextStyle(color: AppTheme.slate.withValues(alpha: 0.9)),
           ),
           SwitchListTile(
@@ -100,7 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             controller: _urlController,
             decoration: const InputDecoration(
               labelText: 'Server URL',
-              hintText: 'https://api.example.com/scans',
+              hintText: 'https://yourdomain.com/path/scan.php',
             ),
             keyboardType: TextInputType.url,
             onChanged: state.setServerUrl,
@@ -109,8 +109,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextField(
             controller: _apiKeyController,
             decoration: const InputDecoration(
-              labelText: 'API key (optional)',
-              hintText: 'Sent as Bearer token',
+              labelText: 'API key',
+              hintText: 'Example: 123  (sent as Bearer 123)',
             ),
             obscureText: true,
             onChanged: state.setApiKey,
