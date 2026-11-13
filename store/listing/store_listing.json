@@ -1,0 +1,59 @@
+{
+  "appName": "ScanForge",
+  "developerName": "Mohannad Haddad - Ayun Solutions",
+  "category": "Tools",
+  "supportEmail": "info@ayunts.com",
+  "supportUrl": "https://ayunts.com",
+  "privacyPolicyUrl": "https://ayunts.com/privacy",
+  "googlePlay": {
+    "title": "ScanForge QR & Barcode Scanner",
+    "shortDescription": "Scan, generate, and upload QR codes & barcodes with searchable history.",
+    "fullDescription": "ScanForge is a professional QR code and barcode scanner for Android. Scan live with your camera, import codes from gallery images, generate new QR codes and barcodes, keep a searchable local history, and optionally upload every scan as JSON to your own server.\n\nKEY FEATURES\n• Fast live camera scanning for QR codes and common barcodes\n• Continuous scan or single-scan modes with torch and camera flip\n• Scan QR codes and barcodes from gallery photos\n• Local history with search, swipe-delete, and upload retry\n• Prevent duplicate scans with configurable cooldown\n• Beep, vibrate, and auto-copy feedback controls\n• QR and barcode generator — share or save to gallery\n• Configurable JSON server upload with optional API key\n• In-app Server API docs showing the exact payload\n• Light and dark themes\n\nWHO IT IS FOR\nInventory checks, warehouse ops, event check-in, IT asset labels, retail barcodes, Wi-Fi QR codes, and any workflow that needs a reliable QR barcode scanner with optional server sync.\n\nPRIVACY FIRST\nScans stay on your device unless you enable upload. When upload is on, ScanForge POSTs JSON you control to the server URL you configure — no third-party scan cloud required.\n\nBuilt by Mohannad Haddad - Ayun Solutions.\nSupport: info@ayunts.com · https://ayunts.com",
+    "keywords": [
+      "QR code scanner",
+      "barcode scanner",
+      "QR scanner",
+      "barcode reader",
+      "QR code generator",
+      "barcode generator",
+      "scan QR code",
+      "inventory scanner",
+      "QR barcode scanner",
+      "JSON upload scanner"
+    ]
+  },
+  "appStore": {
+    "name": "ScanForge QR Barcode",
+    "subtitle": "Scan, Generate & Upload",
+    "promotionalText": "Professional QR & barcode toolkit — live scan, history, generator, and optional JSON server upload.",
+    "description": "ScanForge is a professional QR code and barcode scanner. Scan live with the camera, import codes from photos, generate QR codes and barcodes, keep searchable history, and optionally upload scans as JSON to your own server.\n\nFEATURES\n• Live QR code and barcode scanning with torch and camera flip\n• Continuous or single-scan modes\n• Gallery image scanning\n• Searchable history with swipe-delete and upload retry\n• Duplicate prevention with cooldown windows\n• Beep, vibrate, and auto-copy controls\n• Generate QR codes and barcodes — share or save\n• Configurable JSON upload with optional API key\n• In-app Server API documentation\n• Light and dark appearance\n\nBuilt for inventory, retail, events, IT labels, and custom workflows that need a dependable QR barcode scanner without forcing a third-party cloud.\n\nDeveloper: Mohannad Haddad - Ayun Solutions\nSupport: info@ayunts.com · https://ayunts.com",
+    "keywords": "QR scanner,barcode,QR code,barcode reader,QR generator,inventory,scan QR,code scanner,JSON,warehouse"
+  },
+  "screenshotCaptions": [
+    {
+      "file": "01_hero_scanforge.png",
+      "caption": "QR & barcode scanner",
+      "altText": "ScanForge app hero highlighting QR and barcode scanning, generate, and upload features"
+    },
+    {
+      "file": "02_live_scan.png",
+      "caption": "Fast live scanning",
+      "altText": "ScanForge live camera scanner with viewfinder scanning a barcode"
+    },
+    {
+      "file": "03_history.png",
+      "caption": "Searchable history",
+      "altText": "ScanForge history screen showing searchable past QR and barcode scans with upload status"
+    },
+    {
+      "file": "04_generate.png",
+      "caption": "Create codes in seconds",
+      "altText": "ScanForge generate screen creating a QR code ready to share or save"
+    },
+    {
+      "file": "05_server_upload.png",
+      "caption": "Your server, your data",
+      "altText": "ScanForge settings for JSON server upload, continuous scan, and duplicate prevention"
+    }
+  ]
+}
