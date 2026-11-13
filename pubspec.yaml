@@ -1,7 +1,7 @@
 name: qr_barcode_scanner
 description: Professional QR and barcode scanner with history, generator, and configurable JSON server upload.
 publish_to: 'none'
-version: 1.0.3+4
+version: 1.0.5+6
 
 environment:
   sdk: ^3.9.2
@@ -33,9 +33,20 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/app_icon.png
+  adaptive_icon_background: "#0F8A6B"
+  adaptive_icon_foreground: assets/branding/app_icon.png
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
   assets:
     - assets/sounds/beep.wav
+    - assets/branding/app_icon.png
+
 

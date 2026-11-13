@@ -12,7 +12,10 @@ import '../widgets/scan_overlay.dart';
 import 'result_screen.dart';
 
 class ScannerScreen extends StatefulWidget {
-  const ScannerScreen({super.key});
+  const ScannerScreen({super.key, required this.isActive});
+
+  /// True only while the Scan tab is selected.
+  final bool isActive;
 
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
@@ -29,6 +32,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   bool _permissionGranted = false;
   bool _checkingPermission = true;
   bool _handling = false;
+  bool _appResumed = true;
   String? _lastValue;
   DateTime? _lastScanAt;
   ScanRecord? _lastContinuousRecord;
@@ -41,13 +45,24 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   @override
+  void didUpdateWidget(covariant ScannerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      _syncCamera();
+    }
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_permissionGranted) return;
     if (state == AppLifecycleState.resumed) {
-      _controller.start();
+      _appResumed = true;
+      _syncCamera();
     } else if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused) {
-      _controller.stop();
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      _appResumed = false;
+      _stopCamera();
     }
   }
 
@@ -55,9 +70,34 @@ class _ScannerScreenState extends State<ScannerScreen>
     setState(() => _checkingPermission = true);
     final status = await Permission.camera.request();
     _permissionGranted = status.isGranted;
-    setState(() => _checkingPermission = false);
-    if (_permissionGranted) {
+    if (mounted) {
+      setState(() => _checkingPermission = false);
+    }
+    await _syncCamera();
+  }
+
+  Future<void> _syncCamera() async {
+    if (!_permissionGranted) return;
+    if (widget.isActive && _appResumed) {
+      await _startCamera();
+    } else {
+      await _stopCamera();
+    }
+  }
+
+  Future<void> _startCamera() async {
+    try {
       await _controller.start();
+    } catch (_) {
+      // Already started or temporarily unavailable.
+    }
+  }
+
+  Future<void> _stopCamera() async {
+    try {
+      await _controller.stop();
+    } catch (_) {
+      // Already stopped.
     }
   }
 
@@ -74,6 +114,8 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
+    // Ignore detections while this tab is hidden.
+    if (!widget.isActive || !_appResumed) return;
     if (_handling) return;
     final barcode = capture.barcodes.isEmpty ? null : capture.barcodes.first;
     final value = barcode?.rawValue;
@@ -87,7 +129,7 @@ class _ScannerScreenState extends State<ScannerScreen>
     _handling = true;
     try {
       if (!continuous) {
-        await _controller.stop();
+        await _stopCamera();
       }
 
       final record = await state.handleScan(
@@ -113,8 +155,8 @@ class _ScannerScreenState extends State<ScannerScreen>
             ),
           ),
         );
-        if (mounted && _permissionGranted) {
-          await _controller.start();
+        if (mounted) {
+          await _syncCamera();
         }
       }
     } finally {
@@ -123,6 +165,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   Future<void> _scanFromGallery() async {
+    if (!widget.isActive) return;
     final file = await _picker.pickImage(source: ImageSource.gallery);
     if (file == null) return;
 
@@ -222,10 +265,13 @@ class _ScannerScreenState extends State<ScannerScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(
-            controller: _controller,
-            onDetect: _onDetect,
-          ),
+          if (widget.isActive)
+            MobileScanner(
+              controller: _controller,
+              onDetect: _onDetect,
+            )
+          else
+            const ColoredBox(color: AppTheme.scannerBg),
           ScanOverlay(continuous: continuous),
           SafeArea(
             child: Padding(
@@ -252,12 +298,16 @@ class _ScannerScreenState extends State<ScannerScreen>
                       const SizedBox(width: 8),
                       _RoundIconButton(
                         icon: Icons.flash_on_rounded,
-                        onTap: () => _controller.toggleTorch(),
+                        onTap: () {
+                          if (widget.isActive) _controller.toggleTorch();
+                        },
                       ),
                       const SizedBox(width: 8),
                       _RoundIconButton(
                         icon: Icons.cameraswitch_rounded,
-                        onTap: () => _controller.switchCamera(),
+                        onTap: () {
+                          if (widget.isActive) _controller.switchCamera();
+                        },
                       ),
                       const SizedBox(width: 8),
                       _RoundIconButton(

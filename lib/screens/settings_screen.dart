@@ -143,6 +143,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: _testing
                   ? null
                   : () async {
+                      final messenger = ScaffoldMessenger.of(context);
                       final normalizedUrl =
                           UploadService.normalizeServerUrl(_urlController.text);
                       final normalizedKey =
@@ -152,8 +153,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       await state.setServerUrl(normalizedUrl);
                       await state.setApiKey(normalizedKey);
 
+                      if (!mounted) return;
                       setState(() => _testing = true);
-                      final messenger = ScaffoldMessenger.of(context);
                       final result = await state.upload.testConnection();
                       if (!mounted) return;
                       setState(() => _testing = false);
