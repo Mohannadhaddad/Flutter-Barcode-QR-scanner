@@ -61,9 +61,15 @@ lib/
   constants/   API contract + developer info
 ```
 
-## Customize developer contact
+## About / contact
 
-Edit [`lib/constants/developer_info.dart`](lib/constants/developer_info.dart) to set your email, phone, and website shown on the About screen.
+Shown in the app About screen (Ayun Solutions):
+
+- Email: info@ayunts.com
+- Mobile: +96899206639
+- Website: https://ayunts.com
+
+Edit [`lib/constants/developer_info.dart`](lib/constants/developer_info.dart) to change these later.
 
 ## Tests
 

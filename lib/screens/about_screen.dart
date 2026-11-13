@@ -79,16 +79,24 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-            'Developer',
+            'About us',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
           Text(
-            '${DeveloperInfo.name} · ${DeveloperInfo.role}',
+            DeveloperInfo.role,
             style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
               color: AppTheme.ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            DeveloperInfo.name,
+            style: TextStyle(
+              fontSize: 16,
+              color: AppTheme.slate.withValues(alpha: 0.95),
             ),
           ),
           const SizedBox(height: 16),
