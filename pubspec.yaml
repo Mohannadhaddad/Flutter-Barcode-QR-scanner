@@ -1,7 +1,7 @@
 name: qr_barcode_scanner
 description: Professional QR and barcode scanner with history, generator, and configurable JSON server upload.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.2+3
 
 environment:
   sdk: ^3.9.2
@@ -26,6 +26,8 @@ dependencies:
   package_info_plus: ^8.3.0
   path_provider: ^2.1.5
   permission_handler: ^11.4.0
+  audioplayers: ^6.7.1
+  vibration: ^3.1.8
 
 dev_dependencies:
   flutter_test:
@@ -34,3 +36,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/sounds/beep.wav
+
