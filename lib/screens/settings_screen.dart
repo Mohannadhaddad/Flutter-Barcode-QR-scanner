@@ -48,19 +48,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Continuous scan'),
-            subtitle: const Text('Keep scanning without opening each result'),
+            subtitle: const Text(
+              'Keep scanning without opening each result (beep/vibrate still play)',
+            ),
             value: settings.continuousScan,
             onChanged: state.setContinuousScan,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
+            title: const Text('Prevent duplicates'),
+            subtitle: const Text(
+              'Do not save or upload the same code again within the cooldown',
+            ),
+            value: settings.preventDuplicates,
+            onChanged: state.setPreventDuplicates,
+          ),
+          if (settings.preventDuplicates) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Duplicate cooldown',
+              style: TextStyle(color: AppTheme.slate.withValues(alpha: 0.9)),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 30, label: Text('30s')),
+                ButtonSegment(value: 300, label: Text('5m')),
+                ButtonSegment(value: 1800, label: Text('30m')),
+                ButtonSegment(value: 0, label: Text('Session')),
+              ],
+              selected: {
+                {30, 300, 1800, 0}.contains(settings.duplicateCooldownSeconds)
+                    ? settings.duplicateCooldownSeconds
+                    : 300,
+              },
+              onSelectionChanged: (values) {
+                state.setDuplicateCooldownSeconds(values.first);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
             title: const Text('Beep on scan'),
+            subtitle: const Text('Plays for new scans in single and continuous mode'),
             value: settings.beepEnabled,
             onChanged: state.setBeepEnabled,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Vibrate on scan'),
+            subtitle: const Text('Vibrates for new scans in single and continuous mode'),
             value: settings.vibrateEnabled,
             onChanged: state.setVibrateEnabled,
           ),
@@ -143,6 +181,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: _testing
                   ? null
                   : () async {
+                      final messenger = ScaffoldMessenger.of(context);
                       final normalizedUrl =
                           UploadService.normalizeServerUrl(_urlController.text);
                       final normalizedKey =
@@ -152,8 +191,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       await state.setServerUrl(normalizedUrl);
                       await state.setApiKey(normalizedKey);
 
+                      if (!mounted) return;
                       setState(() => _testing = true);
-                      final messenger = ScaffoldMessenger.of(context);
                       final result = await state.upload.testConnection();
                       if (!mounted) return;
                       setState(() => _testing = false);
