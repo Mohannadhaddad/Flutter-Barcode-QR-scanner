@@ -1,0 +1,169 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/app_state.dart';
+import '../theme/app_theme.dart';
+import '../widgets/api_payload_docs.dart';
+import 'about_screen.dart';
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late final TextEditingController _urlController;
+  late final TextEditingController _apiKeyController;
+  bool _testing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final settings = context.read<AppState>().settings;
+    _urlController = TextEditingController(text: settings.serverUrl);
+    _apiKeyController = TextEditingController(text: settings.apiKey);
+  }
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    _apiKeyController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final settings = state.settings;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        children: [
+          Text('Scanner', style: Theme.of(context).textTheme.titleLarge),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Continuous scan'),
+            subtitle: const Text('Keep scanning without opening each result'),
+            value: settings.continuousScan,
+            onChanged: state.setContinuousScan,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Beep on scan'),
+            value: settings.beepEnabled,
+            onChanged: state.setBeepEnabled,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Vibrate on scan'),
+            value: settings.vibrateEnabled,
+            onChanged: state.setVibrateEnabled,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Auto-copy result'),
+            value: settings.autoCopy,
+            onChanged: state.setAutoCopy,
+          ),
+          const SizedBox(height: 12),
+          Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'system', label: Text('System')),
+              ButtonSegment(value: 'light', label: Text('Light')),
+              ButtonSegment(value: 'dark', label: Text('Dark')),
+            ],
+            selected: {settings.themeMode},
+            onSelectionChanged: (values) {
+              state.setThemeMode(values.first);
+            },
+          ),
+          const SizedBox(height: 28),
+          Text('Server API', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 4),
+          Text(
+            'Scans are saved on-device first. When enabled, each scan is POSTed as JSON to your URL.',
+            style: TextStyle(color: AppTheme.slate.withValues(alpha: 0.9)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Upload to server'),
+            value: settings.uploadEnabled,
+            onChanged: state.setUploadEnabled,
+          ),
+          TextField(
+            controller: _urlController,
+            decoration: const InputDecoration(
+              labelText: 'Server URL',
+              hintText: 'https://api.example.com/scans',
+            ),
+            keyboardType: TextInputType.url,
+            onChanged: state.setServerUrl,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _apiKeyController,
+            decoration: const InputDecoration(
+              labelText: 'API key (optional)',
+              hintText: 'Sent as Bearer token',
+            ),
+            obscureText: true,
+            onChanged: state.setApiKey,
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.tonalIcon(
+              onPressed: _testing
+                  ? null
+                  : () async {
+                      setState(() => _testing = true);
+                      final messenger = ScaffoldMessenger.of(context);
+                      final result = await state.upload.testConnection();
+                      if (!mounted) return;
+                      setState(() => _testing = false);
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            result.isSuccess
+                                ? 'Connection OK'
+                                : (result.message ?? 'Connection failed'),
+                          ),
+                        ),
+                      );
+                    },
+              icon: _testing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.wifi_tethering_rounded),
+              label: Text(_testing ? 'Testing…' : 'Test connection'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const ApiPayloadDocs(),
+          const SizedBox(height: 28),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.info_outline_rounded, color: AppTheme.accent),
+            title: const Text('About'),
+            subtitle: const Text('Developer name and contact'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AboutScreen()),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
