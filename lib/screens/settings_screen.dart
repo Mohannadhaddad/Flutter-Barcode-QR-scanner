@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
+import '../services/upload_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/api_payload_docs.dart';
 import 'about_screen.dart';
@@ -87,7 +88,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text('Server API', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 4),
           Text(
-            'Scans are saved on-device first. When enabled, each scan is POSTed as JSON to your URL. Use the full path to your PHP file (for example https://yourdomain.com/scan.php). Set API key to match your server (e.g. 123).',
+            'Scans are saved on-device first, then uploaded in the background. Use your PHP URL and API key (sent as Authorization: Bearer <key>).',
             style: TextStyle(color: AppTheme.slate.withValues(alpha: 0.9)),
           ),
           SwitchListTile(
@@ -100,20 +101,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
             controller: _urlController,
             decoration: const InputDecoration(
               labelText: 'Server URL',
-              hintText: 'https://yourdomain.com/path/scan.php',
+              hintText: 'https://www.ayunts.com/qrScanner/scan.php',
             ),
             keyboardType: TextInputType.url,
             onChanged: state.setServerUrl,
+            onEditingComplete: () {
+              final normalized =
+                  UploadService.normalizeServerUrl(_urlController.text);
+              _urlController.value = TextEditingValue(
+                text: normalized,
+                selection: TextSelection.collapsed(offset: normalized.length),
+              );
+              state.setServerUrl(normalized);
+              FocusScope.of(context).unfocus();
+            },
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _apiKeyController,
             decoration: const InputDecoration(
               labelText: 'API key',
-              hintText: 'Example: 123  (sent as Bearer 123)',
+              hintText: '3535',
             ),
             obscureText: true,
             onChanged: state.setApiKey,
+            onEditingComplete: () {
+              final normalized =
+                  UploadService.normalizeApiKey(_apiKeyController.text);
+              _apiKeyController.value = TextEditingValue(
+                text: normalized,
+                selection: TextSelection.collapsed(offset: normalized.length),
+              );
+              state.setApiKey(normalized);
+              FocusScope.of(context).unfocus();
+            },
           ),
           const SizedBox(height: 12),
           Align(
@@ -122,6 +143,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: _testing
                   ? null
                   : () async {
+                      final normalizedUrl =
+                          UploadService.normalizeServerUrl(_urlController.text);
+                      final normalizedKey =
+                          UploadService.normalizeApiKey(_apiKeyController.text);
+                      _urlController.text = normalizedUrl;
+                      _apiKeyController.text = normalizedKey;
+                      await state.setServerUrl(normalizedUrl);
+                      await state.setApiKey(normalizedKey);
+
                       setState(() => _testing = true);
                       final messenger = ScaffoldMessenger.of(context);
                       final result = await state.upload.testConnection();
@@ -131,9 +161,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         SnackBar(
                           content: Text(
                             result.isSuccess
-                                ? 'Connection OK'
+                                ? 'Connection OK — scan saved on server'
                                 : (result.message ?? 'Connection failed'),
                           ),
+                          duration: const Duration(seconds: 4),
                         ),
                       );
                     },
