@@ -16,6 +16,7 @@ dependencies:
   barcode_widget: ^2.0.4
   hive_ce: ^2.10.1
   hive_ce_flutter: ^2.2.0
+  flutter_secure_storage: ^9.2.4
   http: ^1.2.2
   share_plus: ^10.1.4
   url_launcher: ^6.3.1

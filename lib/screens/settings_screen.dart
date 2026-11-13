@@ -159,7 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             controller: _apiKeyController,
             decoration: const InputDecoration(
               labelText: 'API key',
-              hintText: '[REDACTED]',
+              hintText: 'Your API key',
             ),
             obscureText: true,
             onChanged: state.setApiKey,
