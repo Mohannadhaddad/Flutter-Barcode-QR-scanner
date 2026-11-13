@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/scan_outcome.dart';
 import '../models/scan_record.dart';
 import '../services/feedback_service.dart';
 import '../services/history_service.dart';
@@ -58,12 +59,42 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<ScanRecord> handleScan({
+  ScanRecord? findDuplicate(String value) {
+    if (!_settings.preventDuplicates) return null;
+    final normalized = value.trim();
+    if (normalized.isEmpty) return null;
+
+    final cooldown = _settings.duplicateCooldownSeconds;
+    final now = DateTime.now().toUtc();
+    for (final record in _records) {
+      if (record.value.trim() != normalized) continue;
+      if (cooldown <= 0) return record;
+      final age = now.difference(record.scannedAt.toUtc());
+      if (age <= Duration(seconds: cooldown)) return record;
+    }
+    return null;
+  }
+
+  Future<ScanOutcome> handleScan({
     required String value,
     required String format,
     required String source,
     bool playFeedback = true,
   }) async {
+    final duplicate = findDuplicate(value);
+    if (duplicate != null) {
+      if (playFeedback) {
+        // Keep continuous mode responsive; do not block on audio.
+        unawaited(
+          _feedback.playDuplicateNotice(
+            beep: _settings.beepEnabled,
+            vibrate: _settings.vibrateEnabled,
+          ),
+        );
+      }
+      return ScanOutcome(record: duplicate, isDuplicate: true);
+    }
+
     final record = ScanRecord(
       id: const Uuid().v4(),
       value: value,
@@ -80,14 +111,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     if (playFeedback) {
-      await _feedback.playSuccess(
-        beep: _settings.beepEnabled,
-        vibrate: _settings.vibrateEnabled,
+      // Fire-and-forget so continuous scanning never waits on audio I/O.
+      unawaited(
+        _feedback.playSuccess(
+          beep: _settings.beepEnabled,
+          vibrate: _settings.vibrateEnabled,
+        ),
       );
-    }
-
-    if (_settings.autoCopy) {
-      // Clipboard copy is performed by the UI layer with services.
     }
 
     // Upload in the background so the result screen opens immediately.
@@ -95,7 +125,7 @@ class AppState extends ChangeNotifier {
       unawaited(_uploadInBackground(record));
     }
 
-    return record;
+    return ScanOutcome(record: record, isDuplicate: false);
   }
 
   Future<void> _uploadInBackground(ScanRecord record) async {
@@ -151,6 +181,16 @@ class AppState extends ChangeNotifier {
 
   Future<void> setAutoCopy(bool value) async {
     await _settings.setAutoCopy(value);
+    notifyListeners();
+  }
+
+  Future<void> setPreventDuplicates(bool value) async {
+    await _settings.setPreventDuplicates(value);
+    notifyListeners();
+  }
+
+  Future<void> setDuplicateCooldownSeconds(int value) async {
+    await _settings.setDuplicateCooldownSeconds(value);
     notifyListeners();
   }
 

@@ -36,6 +36,18 @@ class SettingsService {
   bool get autoCopy => _box.get('autoCopy', defaultValue: false) as bool;
   Future<void> setAutoCopy(bool value) => _box.put('autoCopy', value);
 
+  /// Skip saving/uploading the same code again within [duplicateCooldownSeconds].
+  bool get preventDuplicates =>
+      _box.get('preventDuplicates', defaultValue: true) as bool;
+  Future<void> setPreventDuplicates(bool value) =>
+      _box.put('preventDuplicates', value);
+
+  /// 0 = for the whole app session (until app restart / clear history).
+  int get duplicateCooldownSeconds =>
+      _box.get('duplicateCooldownSeconds', defaultValue: 300) as int;
+  Future<void> setDuplicateCooldownSeconds(int value) =>
+      _box.put('duplicateCooldownSeconds', value);
+
   String get themeMode => _box.get('themeMode', defaultValue: 'system') as String;
   Future<void> setThemeMode(String value) => _box.put('themeMode', value);
 

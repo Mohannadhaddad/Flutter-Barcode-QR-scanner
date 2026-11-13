@@ -102,10 +102,11 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   bool _shouldAccept(String value) {
+    // Short hardware debounce only — app-level duplicate policy lives in AppState.
     final now = DateTime.now();
     if (_lastValue == value &&
         _lastScanAt != null &&
-        now.difference(_lastScanAt!) < const Duration(seconds: 2)) {
+        now.difference(_lastScanAt!) < const Duration(milliseconds: 800)) {
       return false;
     }
     _lastValue = value;
@@ -132,13 +133,14 @@ class _ScannerScreenState extends State<ScannerScreen>
         await _stopCamera();
       }
 
-      final record = await state.handleScan(
+      final outcome = await state.handleScan(
         value: value,
         format: format,
         source: 'camera',
       );
+      final record = outcome.record;
 
-      if (state.settings.autoCopy) {
+      if (!outcome.isDuplicate && state.settings.autoCopy) {
         await Clipboard.setData(ClipboardData(text: value));
       }
 
@@ -146,6 +148,21 @@ class _ScannerScreenState extends State<ScannerScreen>
 
       if (continuous) {
         setState(() => _lastContinuousRecord = record);
+        if (outcome.isDuplicate) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Duplicate skipped — already scanned'),
+              duration: Duration(milliseconds: 900),
+            ),
+          );
+        }
+      } else if (outcome.isDuplicate) {
+        await _syncCamera();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Duplicate skipped — already scanned')),
+        );
       } else {
         await Navigator.of(context).push(
           MaterialPageRoute(
@@ -184,11 +201,20 @@ class _ScannerScreenState extends State<ScannerScreen>
     }
 
     final state = context.read<AppState>();
-    final record = await state.handleScan(
+    final outcome = await state.handleScan(
       value: value,
       format: barcode?.format.name ?? 'unknown',
       source: 'gallery',
     );
+    final record = outcome.record;
+
+    if (!mounted) return;
+    if (outcome.isDuplicate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Duplicate skipped — already scanned')),
+      );
+      return;
+    }
 
     if (state.settings.autoCopy) {
       await Clipboard.setData(ClipboardData(text: value));
