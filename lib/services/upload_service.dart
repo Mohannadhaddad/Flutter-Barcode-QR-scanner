@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 
 import '../constants/api_contract.dart';
 import '../models/scan_record.dart';
@@ -26,11 +30,9 @@ class UploadService {
   static String normalizeServerUrl(String raw) {
     var url = raw.trim();
     if (url.isEmpty) return url;
-    // Users often paste without scheme.
     if (!url.contains('://')) {
       url = 'https://$url';
     }
-    // Prefer https for bare http hosts that always redirect.
     final uri = Uri.tryParse(url);
     if (uri != null && uri.scheme == 'http' && uri.host.isNotEmpty) {
       url = uri.replace(scheme: 'https').toString();
@@ -73,7 +75,6 @@ class UploadService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return const UploadResult(status: UploadStatus.sent, message: 'Sent');
       }
-      // Auth / method errors won't succeed on retry — fail fast.
       final noRetry = response.statusCode == 401 ||
           response.statusCode == 403 ||
           response.statusCode == 404 ||
@@ -85,13 +86,32 @@ class UploadService {
         status: UploadStatus.failed,
         message: _formatError(response.statusCode, response.body),
       );
+    } on TimeoutException catch (_) {
+      return const UploadResult(
+        status: UploadStatus.failed,
+        message:
+            'Server timed out. Check internet, use https://www.ayunts.com/qrScanner/scan.php, and API key 3535',
+      );
+    } on SocketException catch (error) {
+      return UploadResult(
+        status: UploadStatus.failed,
+        message: 'Network error: ${error.message}',
+      );
     } catch (error) {
       if (retry) {
         return uploadScan(record, retry: false);
       }
+      final text = error.toString();
+      if (text.contains('TimeoutException')) {
+        return const UploadResult(
+          status: UploadStatus.failed,
+          message:
+              'Server timed out. Check internet and the server URL/API key, then try again',
+        );
+      }
       return UploadResult(
         status: UploadStatus.failed,
-        message: error.toString(),
+        message: text,
       );
     }
   }
@@ -107,52 +127,61 @@ class UploadService {
     return uploadScan(sample, retry: false);
   }
 
-  /// POST JSON without converting POST→GET on 301/302 redirects (common 405 cause).
+  /// POST JSON with Content-Length (avoids chunked-body hangs on some PHP hosts)
+  /// and re-POST across redirects (avoids GET→405).
   Future<({int statusCode, String body})> _postJson(
     Uri uri,
     Map<String, dynamic> payload,
   ) async {
-    final client = HttpClient();
-    client.connectionTimeout = const Duration(seconds: 8);
+    final httpClient = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 12)
+      ..idleTimeout = const Duration(seconds: 12);
+    final client = IOClient(httpClient);
+
     try {
       var current = uri;
-      for (var hop = 0; hop < 5; hop++) {
-        final request = await client.postUrl(current);
-        request.followRedirects = false;
-        request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
-        request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      final body = jsonEncode(payload);
+      final key = normalizeApiKey(_settings.apiKey);
 
-        final key = normalizeApiKey(_settings.apiKey);
+      for (var hop = 0; hop < 5; hop++) {
+        final request = http.Request('POST', current)
+          ..followRedirects = false
+          ..headers[HttpHeaders.contentTypeHeader] = 'application/json; charset=utf-8'
+          ..headers[HttpHeaders.acceptHeader] = 'application/json'
+          ..headers[HttpHeaders.connectionHeader] = 'close'
+          ..body = body;
+
         if (key.isNotEmpty) {
-          final token = key.toLowerCase().startsWith('bearer ')
-              ? key
-              : 'Bearer $key';
-          request.headers.set(HttpHeaders.authorizationHeader, token);
+          request.headers[HttpHeaders.authorizationHeader] =
+              key.toLowerCase().startsWith('bearer ') ? key : 'Bearer $key';
         }
 
-        request.add(utf8.encode(jsonEncode(payload)));
-        final response =
-            await request.close().timeout(const Duration(seconds: 8));
-        final body = await response.transform(utf8.decoder).join();
+        final streamed = await client
+            .send(request)
+            .timeout(const Duration(seconds: 15));
+        final response = await http.Response.fromStream(streamed)
+            .timeout(const Duration(seconds: 15));
 
         final code = response.statusCode;
         if (code >= 300 && code < 400) {
-          final location = response.headers.value(HttpHeaders.locationHeader);
+          final location = response.headers['location'];
           if (location == null || location.isEmpty) {
-            return (statusCode: code, body: body);
+            return (statusCode: code, body: response.body);
           }
           current = current.resolve(location);
           continue;
         }
 
-        return (statusCode: code, body: body);
+        return (statusCode: code, body: response.body);
       }
+
       return (
         statusCode: 310,
-        body: '{"error":"Too many redirects. Use https://www.ayunts.com/qrScanner/scan.php"}',
+        body:
+            '{"error":"Too many redirects. Use https://www.ayunts.com/qrScanner/scan.php"}',
       );
     } finally {
-      client.close(force: true);
+      client.close();
     }
   }
 
@@ -172,7 +201,7 @@ class UploadService {
     }
 
     final hint = switch (statusCode) {
-      401 => 'Wrong API key — use the key from your PHP (e.g. 3535)',
+      401 => 'Wrong API key — use 3535',
       405 =>
         'Server rejected method. Use https://www.ayunts.com/qrScanner/scan.php',
       404 => 'URL not found — check the full path to your PHP script',
