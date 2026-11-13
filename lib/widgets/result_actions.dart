@@ -36,12 +36,7 @@ class ResultActions extends StatelessWidget {
         ),
         if (record.isUrl)
           OutlinedButton.icon(
-            onPressed: () async {
-              final uri = Uri.parse(record.value);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
+            onPressed: () => _confirmAndOpenUrl(context, record.value),
             icon: const Icon(Icons.open_in_new_rounded),
             label: const Text('Open'),
           ),
@@ -59,5 +54,40 @@ class ResultActions extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  Future<void> _confirmAndOpenUrl(BuildContext context, String value) async {
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Open link?'),
+        content: Text(
+          'This opens an external site:\n\n$value\n\n'
+          'Only continue if you trust this code.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Open'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 }

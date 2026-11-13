@@ -26,7 +26,8 @@ class UploadService {
 
   final SettingsService _settings;
 
-  /// Normalize pasted URLs like `www.ayunts.com/...` → `https://www.ayunts.com/...`
+  /// Normalize pasted URLs like `example.com/path` → `https://example.com/path`.
+  /// Always prefers HTTPS when the pasted scheme is missing or `http`.
   static String normalizeServerUrl(String raw) {
     var url = raw.trim();
     if (url.isEmpty) return url;
@@ -40,9 +41,17 @@ class UploadService {
     return url;
   }
 
-  /// Strip accidental quotes/spaces from keys like `[REDACTED]'`.
+  /// Strip accidental quotes/spaces from pasted keys.
   static String normalizeApiKey(String raw) {
     return raw.trim().replaceAll(RegExp(r'''^['"]+|['"]+$'''), '');
+  }
+
+  /// Whether [next] is safe to follow while keeping the Authorization header.
+  /// Cross-host redirects must not receive the bearer token.
+  static bool isSameAuthScope(Uri from, Uri to) {
+    return from.scheme == to.scheme &&
+        from.host.toLowerCase() == to.host.toLowerCase() &&
+        from.port == to.port;
   }
 
   Future<UploadResult> uploadScan(ScanRecord record, {bool retry = true}) async {
@@ -55,10 +64,13 @@ class UploadService {
 
     final url = normalizeServerUrl(_settings.serverUrl);
     final uri = Uri.tryParse(url);
-    if (url.isEmpty || uri == null || !uri.hasScheme || uri.host.isEmpty) {
+    if (url.isEmpty ||
+        uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty) {
       return const UploadResult(
         status: UploadStatus.skipped,
-        message: 'Configure a valid server URL in Settings',
+        message: 'Configure a valid HTTPS server URL in Settings',
       );
     }
 
@@ -80,7 +92,7 @@ class UploadService {
           response.statusCode == 404 ||
           response.statusCode == 405;
       if (retry && !noRetry) {
-        return uploadScan(record, retry: false);
+        return await uploadScan(record, retry: false);
       }
       return UploadResult(
         status: UploadStatus.failed,
@@ -90,7 +102,7 @@ class UploadService {
       return const UploadResult(
         status: UploadStatus.failed,
         message:
-            'Server timed out. Check internet, use https://example.com/your-upload-endpoint, and API key [REDACTED]',
+            'Server timed out. Check internet, the HTTPS server URL, and API key',
       );
     } on SocketException catch (error) {
       return UploadResult(
@@ -99,7 +111,7 @@ class UploadService {
       );
     } catch (error) {
       if (retry) {
-        return uploadScan(record, retry: false);
+        return await uploadScan(record, retry: false);
       }
       final text = error.toString();
       if (text.contains('TimeoutException')) {
@@ -128,7 +140,7 @@ class UploadService {
   }
 
   /// POST JSON with Content-Length (avoids chunked-body hangs on some PHP hosts)
-  /// and re-POST across redirects (avoids GET→405).
+  /// and re-POST across same-host redirects (avoids GET→405).
   Future<({int statusCode, String body})> _postJson(
     Uri uri,
     Map<String, dynamic> payload,
@@ -140,18 +152,28 @@ class UploadService {
 
     try {
       var current = uri;
+      final origin = uri;
       final body = jsonEncode(payload);
       final key = normalizeApiKey(_settings.apiKey);
+      var sendAuth = key.isNotEmpty;
 
       for (var hop = 0; hop < 5; hop++) {
+        if (current.scheme != 'https' || current.host.isEmpty) {
+          return (
+            statusCode: 400,
+            body: '{"error":"Upload blocked: redirects must stay on HTTPS"}',
+          );
+        }
+
         final request = http.Request('POST', current)
           ..followRedirects = false
-          ..headers[HttpHeaders.contentTypeHeader] = 'application/json; charset=utf-8'
+          ..headers[HttpHeaders.contentTypeHeader] =
+              'application/json; charset=utf-8'
           ..headers[HttpHeaders.acceptHeader] = 'application/json'
           ..headers[HttpHeaders.connectionHeader] = 'close'
           ..body = body;
 
-        if (key.isNotEmpty) {
+        if (sendAuth) {
           request.headers[HttpHeaders.authorizationHeader] =
               key.toLowerCase().startsWith('bearer ') ? key : 'Bearer $key';
         }
@@ -168,7 +190,11 @@ class UploadService {
           if (location == null || location.isEmpty) {
             return (statusCode: code, body: response.body);
           }
-          current = current.resolve(location);
+          final next = current.resolve(location);
+          if (!isSameAuthScope(origin, next)) {
+            sendAuth = false;
+          }
+          current = next;
           continue;
         }
 
@@ -177,8 +203,7 @@ class UploadService {
 
       return (
         statusCode: 310,
-        body:
-            '{"error":"Too many redirects. Use https://example.com/your-upload-endpoint"}',
+        body: '{"error":"Too many redirects. Check the server URL"}',
       );
     } finally {
       client.close();
@@ -195,22 +220,23 @@ class UploadService {
         serverMessage = decoded['message'].toString();
       }
     } catch (_) {
-      if (body.trim().isNotEmpty && body.length < 180) {
-        serverMessage = body.trim();
-      }
+      // Do not surface raw HTML/PHP dumps in the UI.
     }
 
     final hint = switch (statusCode) {
-      401 => 'Wrong API key — use [REDACTED]',
-      405 =>
-        'Server rejected method. Use https://example.com/your-upload-endpoint',
-      404 => 'URL not found — check the full path to your PHP script',
+      401 => 'Wrong API key — check the key configured in Settings',
+      403 => 'Access denied — check the API key and server permissions',
+      405 => 'Server rejected method — confirm the upload URL accepts POST',
+      404 => 'URL not found — check the full path to your upload script',
       _ => null,
     };
 
     final parts = <String>[
       'HTTP $statusCode',
-      if (serverMessage != null && serverMessage.isNotEmpty) serverMessage,
+      if (serverMessage != null &&
+          serverMessage.isNotEmpty &&
+          serverMessage.length < 120)
+        serverMessage,
       if (hint != null) hint,
     ];
     return parts.join(' — ');
