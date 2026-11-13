@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -88,15 +90,19 @@ class AppState extends ChangeNotifier {
       // Clipboard copy is performed by the UI layer with services.
     }
 
+    // Upload in the background so the result screen opens immediately.
     if (_settings.uploadEnabled) {
-      final result = await _upload.uploadScan(record);
-      await _history.updateUploadStatus(record.id, result.status);
-      _records = _history.getAll();
-      notifyListeners();
-      return record.copyWith(uploadStatus: result.status);
+      unawaited(_uploadInBackground(record));
     }
 
     return record;
+  }
+
+  Future<void> _uploadInBackground(ScanRecord record) async {
+    final result = await _upload.uploadScan(record);
+    await _history.updateUploadStatus(record.id, result.status);
+    _records = _history.getAll();
+    notifyListeners();
   }
 
   Future<UploadResult> retryUpload(ScanRecord record) async {
@@ -159,12 +165,12 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> setServerUrl(String value) async {
-    await _settings.setServerUrl(value);
+    await _settings.setServerUrl(value.trim());
     notifyListeners();
   }
 
   Future<void> setApiKey(String value) async {
-    await _settings.setApiKey(value);
+    await _settings.setApiKey(UploadService.normalizeApiKey(value));
     notifyListeners();
   }
 
