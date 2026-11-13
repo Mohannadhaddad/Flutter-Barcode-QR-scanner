@@ -77,3 +77,13 @@ Edit [`lib/constants/developer_info.dart`](lib/constants/developer_info.dart) to
 flutter test
 flutter analyze
 ```
+
+## Store listing assets
+
+Play / App Store copy, SEO tests, and screenshots live under [`store/`](store/README.md).
+
+```bash
+python3 tool/generate_store_screenshots.py
+flutter test test/store_listing_seo_test.dart
+```
+
