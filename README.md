@@ -63,7 +63,7 @@ lib/
 
 ## About / contact
 
-Shown in the app About screen (Ayun Solutions):
+Shown in the app About screen as **Mohannad Haddad - Ayun Solutions**:
 
 - Email: info@ayunts.com
 - Mobile: +96899206639
