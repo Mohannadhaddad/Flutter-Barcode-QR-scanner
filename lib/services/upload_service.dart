@@ -22,6 +22,27 @@ class UploadService {
 
   final SettingsService _settings;
 
+  /// Normalize pasted URLs like `www.ayunts.com/...` → `https://www.ayunts.com/...`
+  static String normalizeServerUrl(String raw) {
+    var url = raw.trim();
+    if (url.isEmpty) return url;
+    // Users often paste without scheme.
+    if (!url.contains('://')) {
+      url = 'https://$url';
+    }
+    // Prefer https for bare http hosts that always redirect.
+    final uri = Uri.tryParse(url);
+    if (uri != null && uri.scheme == 'http' && uri.host.isNotEmpty) {
+      url = uri.replace(scheme: 'https').toString();
+    }
+    return url;
+  }
+
+  /// Strip accidental quotes/spaces from keys like `[REDACTED]'`.
+  static String normalizeApiKey(String raw) {
+    return raw.trim().replaceAll(RegExp(r'''^['"]+|['"]+$'''), '');
+  }
+
   Future<UploadResult> uploadScan(ScanRecord record, {bool retry = true}) async {
     if (!_settings.uploadEnabled) {
       return const UploadResult(
@@ -30,7 +51,7 @@ class UploadService {
       );
     }
 
-    final url = _settings.serverUrl.trim();
+    final url = normalizeServerUrl(_settings.serverUrl);
     final uri = Uri.tryParse(url);
     if (url.isEmpty || uri == null || !uri.hasScheme || uri.host.isEmpty) {
       return const UploadResult(
@@ -52,7 +73,12 @@ class UploadService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return const UploadResult(status: UploadStatus.sent, message: 'Sent');
       }
-      if (retry) {
+      // Auth / method errors won't succeed on retry — fail fast.
+      final noRetry = response.statusCode == 401 ||
+          response.statusCode == 403 ||
+          response.statusCode == 404 ||
+          response.statusCode == 405;
+      if (retry && !noRetry) {
         return uploadScan(record, retry: false);
       }
       return UploadResult(
@@ -87,7 +113,7 @@ class UploadService {
     Map<String, dynamic> payload,
   ) async {
     final client = HttpClient();
-    client.connectionTimeout = const Duration(seconds: 12);
+    client.connectionTimeout = const Duration(seconds: 8);
     try {
       var current = uri;
       for (var hop = 0; hop < 5; hop++) {
@@ -96,7 +122,7 @@ class UploadService {
         request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
         request.headers.set(HttpHeaders.acceptHeader, 'application/json');
 
-        final key = _settings.apiKey.trim();
+        final key = normalizeApiKey(_settings.apiKey);
         if (key.isNotEmpty) {
           final token = key.toLowerCase().startsWith('bearer ')
               ? key
@@ -105,7 +131,8 @@ class UploadService {
         }
 
         request.add(utf8.encode(jsonEncode(payload)));
-        final response = await request.close().timeout(const Duration(seconds: 12));
+        final response =
+            await request.close().timeout(const Duration(seconds: 8));
         final body = await response.transform(utf8.decoder).join();
 
         final code = response.statusCode;
@@ -114,10 +141,7 @@ class UploadService {
           if (location == null || location.isEmpty) {
             return (statusCode: code, body: body);
           }
-          final next = current.resolve(location);
-          // 301/302/303 often make naive clients switch to GET → PHP returns 405.
-          // Re-POST to the final URL instead.
-          current = next;
+          current = current.resolve(location);
           continue;
         }
 
@@ -125,7 +149,7 @@ class UploadService {
       }
       return (
         statusCode: 310,
-        body: '{"error":"Too many redirects. Use the final PHP script URL."}',
+        body: '{"error":"Too many redirects. Use https://example.com/your-upload-endpoint"}',
       );
     } finally {
       client.close(force: true);
@@ -148,9 +172,9 @@ class UploadService {
     }
 
     final hint = switch (statusCode) {
-      401 => 'Check API key (app sends Authorization: Bearer <key>)',
+      401 => 'Wrong API key — use the key from your PHP (e.g. [REDACTED])',
       405 =>
-        'Server rejected method. Use the exact .php URL (not a folder) and HTTPS final URL',
+        'Server rejected method. Use https://example.com/your-upload-endpoint',
       404 => 'URL not found — check the full path to your PHP script',
       _ => null,
     };
