@@ -15,19 +15,17 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  final _pages = const [
-    ScannerScreen(),
-    HistoryScreen(),
-    GenerateScreen(),
-    SettingsScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: _pages,
+        children: [
+          ScannerScreen(isActive: _index == 0),
+          const HistoryScreen(),
+          const GenerateScreen(),
+          const SettingsScreen(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
