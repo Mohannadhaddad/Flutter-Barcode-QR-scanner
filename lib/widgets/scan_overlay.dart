@@ -7,25 +7,31 @@ class ScanOverlay extends StatelessWidget {
 
   final bool continuous;
 
+  /// Cutout rectangle matching the visual scan frame for [size].
+  static Rect cutOutFor(Size size) {
+    final cutOut = Size(
+      size.width * 0.72,
+      size.width * 0.72,
+    );
+    final left = (size.width - cutOut.width) / 2;
+    final top = (size.height - cutOut.height) / 2.4;
+    return Rect.fromLTWH(left, top, cutOut.width, cutOut.height);
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = constraints.biggest;
-        final cutOut = Size(
-          size.width * 0.72,
-          size.width * 0.72,
-        );
-        final left = (size.width - cutOut.width) / 2;
-        final top = (size.height - cutOut.height) / 2.4;
+        final cutOut = cutOutFor(size);
+        final left = cutOut.left;
+        final top = cutOut.top;
 
         return Stack(
           children: [
             CustomPaint(
               size: size,
-              painter: _OverlayPainter(
-                cutOut: Rect.fromLTWH(left, top, cutOut.width, cutOut.height),
-              ),
+              painter: _OverlayPainter(cutOut: cutOut),
             ),
             Positioned(
               left: left,

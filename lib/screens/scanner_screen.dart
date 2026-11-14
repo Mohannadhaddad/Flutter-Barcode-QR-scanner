@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../models/scan_record.dart';
 import '../providers/app_state.dart';
+import '../services/scan_stabilizer.dart';
 import '../theme/app_theme.dart';
 import '../widgets/scan_overlay.dart';
 import 'result_screen.dart';
@@ -23,18 +24,21 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen>
     with WidgetsBindingObserver {
+  static const _settleDuration = Duration(milliseconds: 900);
+
   final MobileScannerController _controller = MobileScannerController(
     autoStart: false,
     detectionSpeed: DetectionSpeed.normal,
   );
   final ImagePicker _picker = ImagePicker();
+  final ScanStabilizer _stabilizer = ScanStabilizer();
 
   bool _permissionGranted = false;
   bool _checkingPermission = true;
   bool _handling = false;
   bool _appResumed = true;
-  String? _lastValue;
-  DateTime? _lastScanAt;
+  DateTime? _settleUntil;
+  Rect? _scanWindow;
   ScanRecord? _lastContinuousRecord;
 
   @override
@@ -48,6 +52,9 @@ class _ScannerScreenState extends State<ScannerScreen>
   void didUpdateWidget(covariant ScannerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isActive != widget.isActive) {
+      if (!widget.isActive) {
+        _stabilizer.reset();
+      }
       _syncCamera();
     }
   }
@@ -101,47 +108,106 @@ class _ScannerScreenState extends State<ScannerScreen>
     }
   }
 
-  bool _shouldAccept(String value) {
-    // Short hardware debounce only — app-level duplicate policy lives in AppState.
-    final now = DateTime.now();
-    if (_lastValue == value &&
-        _lastScanAt != null &&
-        now.difference(_lastScanAt!) < const Duration(milliseconds: 800)) {
-      return false;
+  bool _isSettling() {
+    final until = _settleUntil;
+    return until != null && DateTime.now().isBefore(until);
+  }
+
+  void _beginSettle() {
+    _settleUntil = DateTime.now().add(_settleDuration);
+    _stabilizer.reset();
+  }
+
+  Offset _selectionTarget(Size captureSize) {
+    final fallback = Offset(
+      captureSize.width > 0 ? captureSize.width / 2 : 0,
+      captureSize.height > 0 ? captureSize.height / 2 : 0,
+    );
+    final window = _scanWindow;
+    if (window == null ||
+        captureSize.width <= 0 ||
+        captureSize.height <= 0 ||
+        !mounted) {
+      return fallback;
     }
-    _lastValue = value;
-    _lastScanAt = now;
-    return true;
+    final viewSize = MediaQuery.sizeOf(context);
+    if (viewSize.width <= 0 || viewSize.height <= 0) return fallback;
+    return Offset(
+      window.center.dx / viewSize.width * captureSize.width,
+      window.center.dy / viewSize.height * captureSize.height,
+    );
+  }
+
+  /// Prefer the barcode whose corners are closest to the scan-window center.
+  Barcode? _pickBestBarcode(BarcodeCapture capture) {
+    final candidates = capture.barcodes
+        .where((b) => b.rawValue != null && b.rawValue!.isNotEmpty)
+        .toList();
+    if (candidates.isEmpty) return null;
+    if (candidates.length == 1) return candidates.first;
+
+    final target = _selectionTarget(capture.size);
+    Barcode? best;
+    var bestDistance = double.infinity;
+    for (final barcode in candidates) {
+      final center = _barcodeCenter(barcode);
+      if (center == null) {
+        best ??= barcode;
+        continue;
+      }
+      final distance = (center - target).distance;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = barcode;
+      }
+    }
+    return best ?? candidates.first;
+  }
+
+  Offset? _barcodeCenter(Barcode barcode) {
+    final corners = barcode.corners;
+    if (corners.isEmpty) return null;
+    var sumX = 0.0;
+    var sumY = 0.0;
+    for (final corner in corners) {
+      sumX += corner.dx;
+      sumY += corner.dy;
+    }
+    return Offset(sumX / corners.length, sumY / corners.length);
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
     // Ignore detections while this tab is hidden.
     if (!widget.isActive || !_appResumed) return;
-    if (_handling) return;
-    final barcode = capture.barcodes.isEmpty ? null : capture.barcodes.first;
+    if (_handling || _isSettling()) return;
+
+    final barcode = _pickBestBarcode(capture);
     final value = barcode?.rawValue;
     if (value == null || value.isEmpty) return;
-    if (!_shouldAccept(value)) return;
+
+    final stabilized = _stabilizer.add(value);
+    if (stabilized == null) return;
 
     final state = context.read<AppState>();
     final continuous = state.settings.continuousScan;
-    final format = (barcode?.format.name ?? 'unknown');
+    final format = barcode?.format.name ?? 'unknown';
 
     _handling = true;
+    _beginSettle();
     try {
       if (!continuous) {
         await _stopCamera();
       }
 
       final outcome = await state.handleScan(
-        value: value,
+        value: stabilized,
         format: format,
         source: 'camera',
       );
       final record = outcome.record;
 
       if (!outcome.isDuplicate && state.settings.autoCopy) {
-        await Clipboard.setData(ClipboardData(text: value));
+        await Clipboard.setData(ClipboardData(text: stabilized));
       }
 
       if (!mounted) return;
@@ -288,80 +354,99 @@ class _ScannerScreenState extends State<ScannerScreen>
 
     return Scaffold(
       backgroundColor: AppTheme.scannerBg,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (widget.isActive)
-            MobileScanner(
-              controller: _controller,
-              onDetect: _onDetect,
-            )
-          else
-            const ColoredBox(color: AppTheme.scannerBg),
-          ScanOverlay(continuous: continuous),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Column(
-                children: [
-                  Row(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final nextWindow = ScanOverlay.cutOutFor(constraints.biggest);
+          if (_scanWindow != nextWindow) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _scanWindow = nextWindow);
+            });
+          }
+
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (widget.isActive)
+                MobileScanner(
+                  controller: _controller,
+                  scanWindow: _scanWindow ?? nextWindow,
+                  onDetect: _onDetect,
+                )
+              else
+                const ColoredBox(color: AppTheme.scannerBg),
+              ScanOverlay(continuous: continuous),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Column(
                     children: [
-                      Text(
-                        'ScanForge',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
+                      Row(
+                        children: [
+                          Text(
+                            'ScanForge',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const Spacer(),
+                          _RoundIconButton(
+                            icon: continuous
+                                ? Icons.all_inclusive_rounded
+                                : Icons.filter_1_rounded,
+                            tooltip:
+                                continuous ? 'Continuous on' : 'Single scan',
+                            onTap: () =>
+                                state.setContinuousScan(!continuous),
+                          ),
+                          const SizedBox(width: 8),
+                          _RoundIconButton(
+                            icon: Icons.flash_on_rounded,
+                            onTap: () {
+                              if (widget.isActive) _controller.toggleTorch();
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _RoundIconButton(
+                            icon: Icons.cameraswitch_rounded,
+                            onTap: () {
+                              if (widget.isActive) {
+                                _controller.switchCamera();
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _RoundIconButton(
+                            icon: Icons.photo_library_outlined,
+                            onTap: _scanFromGallery,
+                          ),
+                        ],
                       ),
                       const Spacer(),
-                      _RoundIconButton(
-                        icon: continuous
-                            ? Icons.all_inclusive_rounded
-                            : Icons.filter_1_rounded,
-                        tooltip: continuous ? 'Continuous on' : 'Single scan',
-                        onTap: () => state.setContinuousScan(!continuous),
-                      ),
-                      const SizedBox(width: 8),
-                      _RoundIconButton(
-                        icon: Icons.flash_on_rounded,
-                        onTap: () {
-                          if (widget.isActive) _controller.toggleTorch();
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      _RoundIconButton(
-                        icon: Icons.cameraswitch_rounded,
-                        onTap: () {
-                          if (widget.isActive) _controller.switchCamera();
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      _RoundIconButton(
-                        icon: Icons.photo_library_outlined,
-                        onTap: _scanFromGallery,
-                      ),
+                      if (_lastContinuousRecord != null && continuous)
+                        _LastScanBanner(
+                          record: _lastContinuousRecord!,
+                          onOpen: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ResultScreen(
+                                  recordId: _lastContinuousRecord!.id,
+                                  initial: _lastContinuousRecord,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                     ],
                   ),
-                  const Spacer(),
-                  if (_lastContinuousRecord != null && continuous)
-                    _LastScanBanner(
-                      record: _lastContinuousRecord!,
-                      onOpen: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ResultScreen(
-                              recordId: _lastContinuousRecord!.id,
-                              initial: _lastContinuousRecord,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
