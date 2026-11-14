@@ -79,6 +79,12 @@ class SettingsService {
   Future<void> setPreventDuplicates(bool value) =>
       _box.put('preventDuplicates', value);
 
+  /// When on, require repeated matching reads before accept (slower, fewer misreads).
+  bool get stableScanFilter =>
+      _box.get('stableScanFilter', defaultValue: false) as bool;
+  Future<void> setStableScanFilter(bool value) =>
+      _box.put('stableScanFilter', value);
+
   /// 0 = for the whole app session (until app restart / clear history).
   int get duplicateCooldownSeconds =>
       _box.get('duplicateCooldownSeconds', defaultValue: 300) as int;

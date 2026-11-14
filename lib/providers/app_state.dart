@@ -189,6 +189,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setStableScanFilter(bool value) async {
+    await _settings.setStableScanFilter(value);
+    notifyListeners();
+  }
+
   Future<void> setDuplicateCooldownSeconds(int value) async {
     await _settings.setDuplicateCooldownSeconds(value);
     notifyListeners();
