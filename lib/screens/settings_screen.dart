@@ -59,6 +59,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: settings.preventDuplicates,
             onChanged: state.setPreventDuplicates,
           ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Stable scan filter'),
+            subtitle: const Text(
+              'Confirm repeats to reduce misreads (slower)',
+            ),
+            value: settings.stableScanFilter,
+            onChanged: state.setStableScanFilter,
+          ),
           if (settings.preventDuplicates) ...[
             const SizedBox(height: 4),
             Text(

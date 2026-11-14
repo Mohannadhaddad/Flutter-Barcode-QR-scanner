@@ -24,7 +24,8 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen>
     with WidgetsBindingObserver {
-  static const _settleDuration = Duration(milliseconds: 900);
+  static const _settleDuration = Duration(milliseconds: 400);
+  static const _sameValueDebounce = Duration(milliseconds: 800);
 
   final MobileScannerController _controller = MobileScannerController(
     autoStart: false,
@@ -37,6 +38,8 @@ class _ScannerScreenState extends State<ScannerScreen>
   bool _checkingPermission = true;
   bool _handling = false;
   bool _appResumed = true;
+  String? _lastValue;
+  DateTime? _lastScanAt;
   DateTime? _settleUntil;
   Rect? _scanWindow;
   ScanRecord? _lastContinuousRecord;
@@ -118,6 +121,19 @@ class _ScannerScreenState extends State<ScannerScreen>
     _stabilizer.reset();
   }
 
+  /// Fast path: ignore the same value for a short hardware debounce only.
+  bool _shouldAcceptImmediate(String value) {
+    final now = DateTime.now();
+    if (_lastValue == value &&
+        _lastScanAt != null &&
+        now.difference(_lastScanAt!) < _sameValueDebounce) {
+      return false;
+    }
+    _lastValue = value;
+    _lastScanAt = now;
+    return true;
+  }
+
   Offset _selectionTarget(Size captureSize) {
     final fallback = Offset(
       captureSize.width > 0 ? captureSize.width / 2 : 0,
@@ -179,35 +195,49 @@ class _ScannerScreenState extends State<ScannerScreen>
   Future<void> _onDetect(BarcodeCapture capture) async {
     // Ignore detections while this tab is hidden.
     if (!widget.isActive || !_appResumed) return;
-    if (_handling || _isSettling()) return;
+    if (_handling) return;
+
+    final state = context.read<AppState>();
+    final useStableFilter = state.settings.stableScanFilter;
+    if (useStableFilter && _isSettling()) return;
 
     final barcode = _pickBestBarcode(capture);
     final value = barcode?.rawValue;
     if (value == null || value.isEmpty) return;
 
-    final stabilized = _stabilizer.add(value);
-    if (stabilized == null) return;
-
-    final state = context.read<AppState>();
-    final continuous = state.settings.continuousScan;
     final format = barcode?.format.name ?? 'unknown';
+    final String accepted;
+    if (useStableFilter) {
+      final stabilized = _stabilizer.add(value, format: format);
+      if (stabilized == null) return;
+      accepted = stabilized;
+    } else {
+      if (!_shouldAcceptImmediate(value)) return;
+      accepted = value;
+    }
+
+    final continuous = state.settings.continuousScan;
 
     _handling = true;
-    _beginSettle();
+    if (useStableFilter) {
+      _beginSettle();
+    } else {
+      _stabilizer.reset();
+    }
     try {
       if (!continuous) {
         await _stopCamera();
       }
 
       final outcome = await state.handleScan(
-        value: stabilized,
+        value: accepted,
         format: format,
         source: 'camera',
       );
       final record = outcome.record;
 
       if (!outcome.isDuplicate && state.settings.autoCopy) {
-        await Clipboard.setData(ClipboardData(text: stabilized));
+        await Clipboard.setData(ClipboardData(text: accepted));
       }
 
       if (!mounted) return;

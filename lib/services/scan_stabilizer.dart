@@ -1,25 +1,33 @@
-/// Requires the same payload across multiple detections before accepting.
-///
-/// Used because mobile_scanner exposes no confidence score; a single flaky
-/// decode can otherwise be persisted immediately.
+/// Requires matching payload hits before accepting when the stable scan filter
+/// is enabled. 2D codes (QR / Aztec / Data Matrix) accept on the first hit;
+/// 1D codes need two matching hits within [window].
 class ScanStabilizer {
   ScanStabilizer({
-    this.requiredHits = 3,
-    this.window = const Duration(milliseconds: 500),
-  }) : assert(requiredHits >= 1);
+    this.window = const Duration(milliseconds: 350),
+  });
 
-  final int requiredHits;
   final Duration window;
 
   String? _candidate;
   int _hits = 0;
   DateTime? _firstHitAt;
 
+  /// True for formats with strong error correction (instant accept).
+  static bool is2dFormat(String? format) {
+    final normalized = (format ?? '').toLowerCase().replaceAll('_', '');
+    return normalized.contains('qr') ||
+        normalized.contains('aztec') ||
+        normalized.contains('datamatrix');
+  }
+
+  static int requiredHitsFor(String? format) => is2dFormat(format) ? 1 : 2;
+
   /// Feed a detected [value]. Returns it when consensus is reached, else null.
-  String? add(String value, {DateTime? now}) {
+  String? add(String value, {String? format, DateTime? now}) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return null;
 
+    final requiredHits = requiredHitsFor(format);
     final at = now ?? DateTime.now();
 
     if (_candidate == null ||
