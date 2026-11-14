@@ -4,10 +4,10 @@
   "category": "Tools",
   "supportEmail": "info@ayunts.com",
   "supportUrl": "https://ayunts.com",
-  "privacyPolicyUrl": "https://ayunts.com/privacy",
+  "privacyPolicyUrl": "https://www.ayunts.com/privacy-policy/",
   "googlePlay": {
     "title": "ScanForge QR & Barcode Scanner",
-    "shortDescription": "Scan, generate, and upload QR codes & barcodes with searchable history.",
+    "shortDescription": "QR & barcode scanner with history, generator, and optional JSON upload.",
     "fullDescription": "ScanForge is a professional QR code and barcode scanner for Android. Scan live with your camera, import codes from gallery images, generate new QR codes and barcodes, keep a searchable local history, and optionally upload every scan as JSON to your own server.\n\nKEY FEATURES\n• Fast live camera scanning for QR codes and common barcodes\n• Continuous scan or single-scan modes with torch and camera flip\n• Scan QR codes and barcodes from gallery photos\n• Local history with search, swipe-delete, and upload retry\n• Prevent duplicate scans with configurable cooldown\n• Beep, vibrate, and auto-copy feedback controls\n• QR and barcode generator — share or save to gallery\n• Configurable JSON server upload with optional API key\n• In-app Server API docs showing the exact payload\n• Light and dark themes\n\nWHO IT IS FOR\nInventory checks, warehouse ops, event check-in, IT asset labels, retail barcodes, Wi-Fi QR codes, and any workflow that needs a reliable QR barcode scanner with optional server sync.\n\nPRIVACY FIRST\nScans stay on your device unless you enable upload. When upload is on, ScanForge POSTs JSON you control to the server URL you configure — no third-party scan cloud required.\n\nBuilt by Mohannad Haddad - Ayun Solutions.\nSupport: info@ayunts.com · https://ayunts.com",
     "keywords": [
       "QR code scanner",

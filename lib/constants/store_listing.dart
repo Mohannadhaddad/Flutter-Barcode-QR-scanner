@@ -6,11 +6,12 @@ class StoreListing {
   static const String developerName = 'Mohannad Haddad - Ayun Solutions';
   static const String supportEmail = 'info@ayunts.com';
   static const String supportUrl = 'https://ayunts.com';
+  static const String privacyPolicyUrl = 'https://www.ayunts.com/privacy-policy/';
 
   // Google Play limits: title ≤30, short ≤80, full ≤4000.
   static const String playTitle = 'ScanForge QR & Barcode Scanner';
   static const String playShortDescription =
-      'Scan, generate, and upload QR codes & barcodes with searchable history.';
+      'QR & barcode scanner with history, generator, and optional JSON upload.';
   static const String playFullDescription = '''
 ScanForge is a professional QR code and barcode scanner for Android. Scan live with your camera, import codes from gallery images, generate new QR codes and barcodes, keep a searchable local history, and optionally upload every scan as JSON to your own server.
 
