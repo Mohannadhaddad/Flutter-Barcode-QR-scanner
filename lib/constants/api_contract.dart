@@ -12,7 +12,7 @@ class ApiContract {
     ApiField(
       name: 'format',
       type: 'string',
-      description: 'Symbology, e.g. qr_code, ean_13, code_128',
+      description: 'Code type (e.g. qr_code)',
     ),
     ApiField(
       name: 'scannedAt',
@@ -27,7 +27,7 @@ class ApiContract {
     ApiField(
       name: 'deviceId',
       type: 'string',
-      description: 'Stable anonymous install id',
+      description: 'Anonymous device id',
     ),
   ];
 

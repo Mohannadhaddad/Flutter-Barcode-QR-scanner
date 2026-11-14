@@ -48,18 +48,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Continuous scan'),
-            subtitle: const Text(
-              'Keep scanning without opening each result (beep/vibrate still play)',
-            ),
+            subtitle: const Text('Scan repeatedly without opening results'),
             value: settings.continuousScan,
             onChanged: state.setContinuousScan,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Prevent duplicates'),
-            subtitle: const Text(
-              'Do not save or upload the same code again within the cooldown',
-            ),
+            subtitle: const Text('Ignore the same code during the cooldown'),
             value: settings.preventDuplicates,
             onChanged: state.setPreventDuplicates,
           ),
@@ -91,14 +87,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Beep on scan'),
-            subtitle: const Text('Plays for new scans in single and continuous mode'),
             value: settings.beepEnabled,
             onChanged: state.setBeepEnabled,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Vibrate on scan'),
-            subtitle: const Text('Vibrates for new scans in single and continuous mode'),
             value: settings.vibrateEnabled,
             onChanged: state.setVibrateEnabled,
           ),
@@ -126,7 +120,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text('Server API', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 4),
           Text(
-            'Scans are saved on-device first, then uploaded in the background. Use your PHP URL and API key (sent as Authorization: Bearer <key>).',
+            'Saved on device first, then uploaded. API key is sent as Bearer auth.',
             style: TextStyle(color: AppTheme.slate.withValues(alpha: 0.9)),
           ),
           SwitchListTile(
@@ -200,7 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         SnackBar(
                           content: Text(
                             result.isSuccess
-                                ? 'Connection OK — scan saved on server'
+                                ? 'Connection OK'
                                 : (result.message ?? 'Connection failed'),
                           ),
                           duration: const Duration(seconds: 4),
@@ -224,7 +218,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.info_outline_rounded, color: AppTheme.accent),
             title: const Text('About'),
-            subtitle: const Text('Developer name and contact'),
+            subtitle: const Text('App info and contact'),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () {
               Navigator.of(context).push(
