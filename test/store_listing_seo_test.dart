@@ -122,6 +122,7 @@ void main() {
       expect(json['developerName'], StoreListing.developerName);
       expect(json['supportEmail'], StoreListing.supportEmail);
       expect(json['supportUrl'], StoreListing.supportUrl);
+      expect(json['privacyPolicyUrl'], StoreListing.privacyPolicyUrl);
 
       expect(play['title'], StoreListing.playTitle);
       expect(play['shortDescription'], StoreListing.playShortDescription);
